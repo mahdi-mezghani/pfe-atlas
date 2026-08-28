@@ -1,0 +1,23 @@
+
+  SystemRoot: 'C:\\WINDOWS',
+    middlewareMode: false,
+    copyPublicDir: true,
+  appType: 'custom',
+        copyPublicDir: true,
+          transformIndexHtml: { handler: [Function: handler], order: 'pre' }
+          transformIndexHtml: [Function: transformIndexHtml]
+              root: 'C:/Users/DELL/Desktop/stage kakushin soft/Project',
+        copyPublicDir: false,
+          transformIndexHtml: { handler: [Function: handler], order: 'pre' }
+          transformIndexHtml: [Function: transformIndexHtml]
+              root: 'C:/Users/DELL/Desktop/stage kakushin soft/Project',
+    root: undefined,
+    base: undefined,
+  root: 'C:/Users/DELL/Desktop/stage kakushin soft/Project',
+  base: '/',
+  decodedBase: '/',
+  rawBase: '/',
+  publicDir: 'C:/Users/DELL/Desktop/stage kakushin soft/Project/public',
+
+
+
