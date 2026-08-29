@@ -1,5 +1,7 @@
 # Implementation Details
 
+Version 1.0
+
 ## Overview
 
 This document describes the technical implementation of the PDF document analysis chatbot and the main engineering decisions behind it.

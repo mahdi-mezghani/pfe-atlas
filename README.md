@@ -1,5 +1,7 @@
 # PDF Document Analysis Chatbot
 
+Version 1.0
+
 ## Internship Project Summary
 
 This project was developed during an internship as an intelligent document analysis and question-answering system. The application allows users to upload PDF documents, extract their text content, prepare the information for semantic search, and ask questions in natural language. The system then retrieves the most relevant document segments and generates a context-aware answer using an AI model.

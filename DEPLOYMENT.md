@@ -1,5 +1,7 @@
 # Deployment and Setup Guide
 
+Version 1.0
+
 ## Requirements
 
 Before running the project, make sure the following are available:
