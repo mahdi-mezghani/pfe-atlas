@@ -6,6 +6,8 @@ This project was developed during an internship as an intelligent document analy
 
 The goal of the project was to build a practical proof-of-concept for document intelligence, combining modern web development, database search, and AI-powered reasoning in a single workflow.
 
+Lovable was used to accelerate the initial development of the application by generating the project scaffold, interface structure, and key frontend components, allowing the concept to move quickly from idea to a functional prototype. However, the core technical development of the project—including PDF processing, AI integration, semantic retrieval, database design, and debugging of runtime issues—was completed through custom implementation in the application itself. This combination enabled a rapid and efficient development workflow while ensuring the final solution was technically robust and aligned with the project’s AI-driven document analysis goals.
+
 ## Project Objective
 
 The main objective was to create a full-stack application capable of:
