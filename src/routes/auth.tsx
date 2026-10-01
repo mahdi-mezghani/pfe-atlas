@@ -1,7 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -166,28 +165,12 @@ function AuthPage() {
 
 
   const google = async () => {
-    const useSelfHosted = import.meta.env.VITE_SELF_HOSTED === "true";
     const redirectUri = `${window.location.origin}/auth`;
-
-    if (useSelfHosted) {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: { redirectTo: redirectUri },
-      });
-      if (error) {
-        toast.error(error.message);
-      }
-      return;
-    }
-
-    const res = await lovable.auth.signInWithOAuth("google", { redirect_uri: redirectUri });
-
-    if (res.error) {
-      toast.error("Google login failed. Please confirm the Lovable OAuth broker is configured for this project.");
-      return;
-    }
-
-    if (!res.redirected) navigate({ to: "/dashboard" });
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: redirectUri },
+    });
+    if (error) toast.error(error.message);
   };
 
 

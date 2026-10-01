@@ -1,16 +1,18 @@
-# Migrating PFE Atlas off Lovable
+# Migrating PFE Atlas to Self-Managed Infrastructure
 
-This app is a plain TanStack Start (React 19 + Vite 7) project talking to a Postgres/Supabase backend. Nothing in the app logic is Lovable-specific except three things: the managed backend, the AI gateway, and the Google OAuth broker. Below is the full move.
+This guide describes moving PFE Atlas to a separately managed Supabase project and deployment environment.
 
 ---
 
 ## 1. Get the code
 
-Connect GitHub in the Lovable project (Settings → GitHub) and push, or download the project as a zip. Then locally:
+Clone the project repository, then install and run it locally:
 
 ```bash
+git clone <repository-url>
+cd <repository-directory>
 npm install
-npm run dev     # http://localhost:8080
+npm run dev     # http://127.0.0.1:8081
 ```
 
 ## 2. Stand up your own backend
@@ -43,11 +45,11 @@ In Authentication → Providers: enable Email, enable Google (paste your own Goo
 
 ### 2.4 Data
 
-Export your current data from Lovable: **Cloud → Advanced settings → Export data**. Import the CSVs into the new tables (`documents` first, then `technologies`, `keywords`, `chunks`). Files in the `pfe-reports` bucket must be downloaded and re-uploaded to the new bucket at the same paths (`<user_id>/<file>.pdf`), otherwise re-upload the PDFs through the app and let it re-process them.
+Export data from the source backend and import it into the new tables (`documents` first, then `technologies`, `keywords`, `chunks`). Files in the `pfe-reports` bucket must be downloaded and re-uploaded to the new bucket at the same paths (`<user_id>/<file>.pdf`), otherwise re-upload the PDFs through the app and let it re-process them.
 
-## 3. Replace the AI gateway
+## 3. Configure the AI provider
 
-`src/lib/ai.server.ts` now supports any OpenAI-compatible provider. Set:
+`src/lib/ai.server.ts` supports Google Gemini and OpenAI-compatible providers. For an OpenAI-compatible provider, set:
 
 ```bash
 AI_BASE_URL=https://api.openai.com/v1
@@ -58,8 +60,6 @@ AI_EMBEDDING_MODEL=text-embedding-3-large     # must be 3072 dims
 
 ⚠️ If you pick an embedding model with a different dimension, change `vector(3072)` in the schema (and the halfvec index/`match_chunks` casts) to match, and re-embed all chunks.
 
-If `AI_API_KEY` is unset the code falls back to `LOVABLE_API_KEY` + the Lovable gateway.
-
 ## 4. Environment variables
 
 Create `.env` (local) and set the same in your host's dashboard:
@@ -68,8 +68,6 @@ Create `.env` (local) and set the same in your host's dashboard:
 # client (bundled into the browser build)
 VITE_SUPABASE_URL=https://<ref>.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=<anon / publishable key>
-VITE_SELF_HOSTED=true          # uses Supabase Google OAuth instead of the Lovable broker
-
 # server only
 SUPABASE_URL=https://<ref>.supabase.co
 SUPABASE_PUBLISHABLE_KEY=<anon / publishable key>
@@ -80,11 +78,7 @@ AI_API_KEY=...
 
 Never expose the service-role key to the client.
 
-## 5. Optional cleanup
-
-Once `VITE_SELF_HOSTED=true` works you can delete `src/integrations/lovable/`, `src/lib/lovable-error-reporting.ts` (and its import in `src/routes/__root.tsx`), and `npm remove @lovable.dev/cloud-auth-js`.
-
-## 6. Deploy
+## 5. Deploy
 
 The app SSRs, so it needs a Node/edge host — not static hosting.
 
@@ -100,4 +94,4 @@ Add your deployed origin to the Supabase auth redirect allow-list and Google OAu
 
 ---
 
-Note: the Lovable Cloud backend attached to the original project cannot be detached — after migrating, just stop pointing the app at it.
+After migration, verify that the application uses only the new Supabase project and the intended AI provider credentials.

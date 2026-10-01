@@ -1,6 +1,6 @@
 // Server-only AI helpers.
 // Supports OpenAI-compatible providers and Google Gemini providers.
-// Defaults to the Lovable AI Gateway, but can point at any compatible backend.
+// Uses Gemini or an OpenAI-compatible AI provider configured by environment variables.
 //   AI_PROVIDER            openai | gemini
 //   AI_BASE_URL            provider base URL
 //   AI_API_KEY             OpenAI-style API key / Gemini bearer token
@@ -11,7 +11,6 @@
 //   AI_GEMINI_EMBEDDING_MODEL Gemini embedding model override
 //   AI_GEMINI_USE_API_KEY   true to send Gemini key as `?key=...` instead of a bearer token
 const DEFAULT_OPENAI_BASE = "https://api.openai.com/v1";
-const LOVABLE_BASE = "https://ai.gateway.lovable.dev/v1";
 
 function provider() {
   return (process.env.AI_PROVIDER ?? "openai").toLowerCase();
@@ -76,19 +75,17 @@ function maskKey(s?: string) {
 function headers(): Record<string, string> {
   const apiKey = process.env.AI_API_KEY;
   const geminiKey = process.env.AI_GEMINI_API_KEY;
-  const lovableKey = process.env.LOVABLE_API_KEY;
   const chosenKey = provider() === "gemini" ? geminiKey ?? apiKey : apiKey;
   const useQueryKey = provider() === "gemini" && useGeminiKeyAsQueryParam();
 
   try {
     // eslint-disable-next-line no-console
     console.debug(
-      '[ai] provider=%s base=%s auth=%s api_key=%s lovable_key=%s',
+      '[ai] provider=%s base=%s auth=%s api_key=%s',
       provider(),
       base(),
       provider() === "gemini" ? (useQueryKey ? "query" : "bearer") : "bearer",
       maskKey(chosenKey),
-      maskKey(lovableKey),
     );
   } catch (e) {
     /* ignore debug failures */
@@ -110,14 +107,7 @@ function headers(): Record<string, string> {
     };
   }
 
-  if (lovableKey) {
-    return {
-      "Content-Type": "application/json",
-      "Lovable-API-Key": lovableKey,
-    };
-  }
-
-  throw new Error("Missing AI_API_KEY / LOVABLE_API_KEY");
+  throw new Error("Missing AI_API_KEY for the configured AI provider.");
 }
 
 function buildGeminiPrompt(messages: ChatMessage[], jsonSchema?: { name: string; schema: unknown }) {
