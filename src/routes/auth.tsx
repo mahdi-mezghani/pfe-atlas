@@ -7,21 +7,9 @@ import { Label } from "@/components/ui/label";
 import { BookOpen } from "lucide-react";
 import { toast } from "sonner";
 import { signInSchema, signUpSchema } from "@/lib/validation";
-import { getSupabaseProjectId } from "@/integrations/supabase/config";
-
-function decodeJwtPayload(token: string) {
-  try {
-    const [, payload] = token.split(".");
-    if (!payload) return null;
-    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = normalized + "=".repeat((4 - (normalized.length % 4)) % 4);
-    return JSON.parse(atob(padded));
-  } catch {
-    return null;
-  }
-}
 
 export const Route = createFileRoute("/auth")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Sign in — PFE Atlas" },
@@ -44,45 +32,28 @@ function AuthPage() {
     const finalizeAuth = async () => {
       setLoading(true);
       try {
-        const { data } = await supabase.auth.getSession();
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
         if (data.session) {
           window.history.replaceState({}, "", window.location.pathname);
           navigate({ to: "/dashboard" });
           return;
         }
 
-        const hash = window.location.hash;
-        if (!hash.startsWith("#access_token=")) return;
+        const hash = window.location.hash.replace(/^#/, "");
+        if (!hash.includes("access_token=") || !hash.includes("refresh_token=")) return;
 
-        const params = new URLSearchParams(hash.replace(/^#/, ""));
+        const params = new URLSearchParams(hash);
         const accessToken = params.get("access_token");
         const refreshToken = params.get("refresh_token");
-        const expiresAt = params.get("expires_at");
-        const expiresIn = params.get("expires_in");
-        const tokenType = params.get("token_type") ?? "bearer";
-        const projectId = getSupabaseProjectId() || "";
-
         if (!accessToken || !refreshToken) return;
 
-        const payload = decodeJwtPayload(accessToken);
-        const storageKey = projectId ? `sb-${projectId}-auth-token` : "sb-auth-token";
-        const session = {
+        const { error: sessionError } = await supabase.auth.setSession({
           access_token: accessToken,
           refresh_token: refreshToken,
-          token_type: tokenType,
-          expires_in: expiresIn ? Number(expiresIn) : 3600,
-          expires_at: expiresAt ? Number(expiresAt) : Math.floor(Date.now() / 1000) + 3600,
-          user: {
-            id: payload?.sub ?? null,
-            email: payload?.email ?? null,
-            app_metadata: payload?.app_metadata ?? {},
-            user_metadata: payload?.user_metadata ?? {},
-            role: payload?.role ?? "authenticated",
-          },
-        };
+        });
+        if (sessionError) throw sessionError;
 
-        window.localStorage.setItem(storageKey, JSON.stringify(session));
-        window.localStorage.setItem(`${storageKey}-user`, JSON.stringify(session.user));
         window.history.replaceState({}, "", window.location.pathname);
         navigate({ to: "/dashboard" });
       } catch (e: unknown) {
@@ -163,7 +134,6 @@ function AuthPage() {
     }
   };
 
-
   const google = async () => {
     const redirectUri = `${window.location.origin}/auth`;
     const { error } = await supabase.auth.signInWithOAuth({
@@ -172,7 +142,6 @@ function AuthPage() {
     });
     if (error) toast.error(error.message);
   };
-
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-6">
@@ -197,7 +166,6 @@ function AuthPage() {
               {mode === "signup" && (
                 <p className="text-xs text-muted-foreground">At least 8 characters, with an uppercase letter, a lowercase letter, and a number.</p>
               )}
-
             </div>
             <Button className="w-full" type="submit" disabled={loading}>
               {loading ? "…" : mode === "signin" ? "Sign in" : "Create account"}

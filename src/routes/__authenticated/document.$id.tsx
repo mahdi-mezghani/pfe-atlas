@@ -4,6 +4,22 @@ import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, Download, Loader2, MessageSquare } from "lucide-react";
+import type { Tables } from "@/integrations/supabase/types";
+
+type MetadataReview = {
+  source: "ai" | "unavailable" | "fallback" | "deterministic" | "partial";
+  summary_source?: "ai" | "deterministic";
+  issues: string[];
+};
+
+function isMetadataReview(value: unknown): value is MetadataReview {
+  if (!value || typeof value !== "object") return false;
+  const review = value as Record<string, unknown>;
+  return (review.source === "ai" || review.source === "unavailable" || review.source === "fallback" || review.source === "deterministic" || review.source === "partial") &&
+    (review.summary_source === undefined || review.summary_source === "ai" || review.summary_source === "deterministic") &&
+    Array.isArray(review.issues) &&
+    review.issues.every((issue) => typeof issue === "string");
+}
 
 export const Route = createFileRoute("/__authenticated/document/$id")({
   component: DocPage,
@@ -11,7 +27,11 @@ export const Route = createFileRoute("/__authenticated/document/$id")({
 
 function DocPage() {
   const { id } = useParams({ from: "/__authenticated/document/$id" });
-  const [doc, setDoc] = useState<any>(null);
+  type DocumentDetail = Tables<"documents"> & {
+    technologies: Pick<Tables<"technologies">, "name">[] | null;
+    keywords: Pick<Tables<"keywords">, "keyword">[] | null;
+  };
+  const [doc, setDoc] = useState<DocumentDetail | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -30,6 +50,7 @@ function DocPage() {
   }, [id]);
 
   if (!doc) return <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Loading…</div>;
+  const metadataReview = isMetadataReview(doc.metadata_review) ? doc.metadata_review : null;
 
   return (
     <article className="space-y-8">
@@ -47,6 +68,30 @@ function DocPage() {
         </div>
       </header>
 
+      {doc.status === "ready" && metadataReview && (
+        <aside role="status" className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200">
+          <p className="font-medium">
+            {metadataReview.source === "deterministic"
+              ? "Model metadata failed validation; verbatim PDF values are shown where available."
+              : metadataReview.source === "partial"
+                ? "Some model fields failed validation; accepted AI values are kept and explicit PDF values fill missing fields."
+              : metadataReview.source === "unavailable"
+              ? "Metadata extraction failed; no substitute values were added."
+              : metadataReview.source === "fallback"
+                ? "This older report contains heuristic fallback values."
+                : "Review these metadata fields:"}
+          </p>
+          <ul className="mt-2 list-inside list-disc space-y-1">
+            {metadataReview.issues.map((issue) => <li key={issue}>{issue}</li>)}
+          </ul>
+        </aside>
+      )}
+      {doc.status === "ready" && doc.error && !metadataReview && (
+        <p role="status" className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200">
+          Metadata needs review. This older report does not have field-level review details.
+        </p>
+      )}
+
       <section className="flex flex-wrap gap-3">
         <Button asChild variant="outline">
           <Link to="/ask" search={{ documentId: id } as never}><MessageSquare className="h-4 w-4" /> Ask about this report</Link>
@@ -60,27 +105,32 @@ function DocPage() {
 
       {doc.summary && (
         <section className="rounded-2xl border border-border/60 bg-card p-6">
-          <h2 className="mb-3 font-serif text-xl">Summary</h2>
+          <h2 className="mb-3 font-serif text-xl">
+            {metadataReview?.source === "deterministic" ||
+            (metadataReview?.source === "partial" && metadataReview.summary_source === "deterministic")
+              ? "Verbatim abstract"
+              : "Report overview"}
+          </h2>
           <p className="text-muted-foreground leading-relaxed">{doc.summary}</p>
         </section>
       )}
 
-      {doc.technologies?.length > 0 && (
+      {doc.technologies && doc.technologies.length > 0 && (
         <section>
           <h2 className="mb-3 font-serif text-xl">Technologies</h2>
           <div className="flex flex-wrap gap-2">
-            {doc.technologies.map((t: any) => (
+            {doc.technologies.map((t) => (
               <Badge key={t.name} className="bg-accent/15 text-accent-foreground hover:bg-accent/25">{t.name}</Badge>
             ))}
           </div>
         </section>
       )}
 
-      {doc.keywords?.length > 0 && (
+      {doc.keywords && doc.keywords.length > 0 && (
         <section>
           <h2 className="mb-3 font-serif text-xl">Keywords</h2>
           <div className="flex flex-wrap gap-2">
-            {doc.keywords.map((k: any) => (
+            {doc.keywords.map((k) => (
               <Badge key={k.keyword} variant="outline">{k.keyword}</Badge>
             ))}
           </div>

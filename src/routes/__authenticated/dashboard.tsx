@@ -1,5 +1,5 @@
-import { createFileRoute, Link, useRouter } from "@tanstack/react-router";
-import { useEffect, useState, useMemo } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { extractPdfText } from "@/lib/pdf";
 import { processDocument, semanticSearch } from "@/lib/documents.functions";
@@ -34,28 +34,17 @@ type Doc = {
   summary: string | null;
   status: string;
   error: string | null;
+  metadata_review?: {
+    source: "ai" | "unavailable" | "fallback" | "deterministic" | "partial";
+    summary_source?: "ai" | "deterministic";
+    issues: string[];
+  } | null;
   created_at: string;
+  updated_at: string;
   technologies?: { name: string }[];
 };
 
-function withTimeout<T>(promise: Promise<T>, milliseconds: number, message: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(message)), milliseconds);
-    promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (error: unknown) => {
-        clearTimeout(timer);
-        reject(error);
-      },
-    );
-  });
-}
-
 function Dashboard() {
-  const router = useRouter();
   const [docs, setDocs] = useState<Doc[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -65,6 +54,7 @@ function Dashboard() {
   const [searching, setSearching] = useState(false);
   const [techFilter, setTechFilter] = useState<string | null>(null);
   const [fieldFilter, setFieldFilter] = useState<string | null>(null);
+  const uploadLockRef = useRef(false);
 
   const processFn = useServerFn(processDocument);
   const searchFn = useServerFn(semanticSearch);
@@ -115,6 +105,11 @@ function Dashboard() {
   }, []);
 
   const upload = async (file: File) => {
+    if (uploadLockRef.current) {
+      toast.error("An upload is already in progress. Please wait for it to finish.");
+      return;
+    }
+
     const check = validatePdfFile(file);
     if (!check.ok) {
       toast.error(check.message);
@@ -125,6 +120,11 @@ function Dashboard() {
       return;
     }
 
+    const fileHash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer())))
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+
+    uploadLockRef.current = true;
     setUploading(true);
     let createdDocumentId: string | null = null;
     try {
@@ -132,6 +132,26 @@ function Dashboard() {
       if (userErr || !userRes.user) throw new Error("Your session expired. Please sign in again.");
       const uid = userRes.user.id;
       const safeName = sanitizeFileName(file.name);
+
+      const { data: existingDoc, error: existingDocError } = await supabase
+        .from("documents")
+        .select("id, status")
+        .eq("uploader_id", uid)
+        .eq("file_hash", fileHash)
+        .maybeSingle();
+
+      if (existingDocError) {
+        const msg = String(existingDocError.message ?? "");
+        if (!/file_hash|column .* does not exist|does not exist/i.test(msg)) {
+          throw existingDocError;
+        }
+      }
+
+      if (existingDoc) {
+        toast.info("This report is already in your library.");
+        return;
+      }
+
       const path = `${uid}/${crypto.randomUUID()}-${safeName}`;
 
       setProgress("Uploading PDF…");
@@ -142,25 +162,32 @@ function Dashboard() {
 
       const { data: doc, error: docErr } = await supabase
         .from("documents")
-        .insert({ uploader_id: uid, file_name: safeName, storage_path: path, status: "extracting" })
+        .insert({
+          uploader_id: uid,
+          file_name: safeName,
+          storage_path: path,
+          ...(fileHash ? { file_hash: fileHash } : {}),
+          status: "extracting",
+        })
         .select()
         .single();
-      if (docErr) throw docErr;
+      if (docErr) {
+        const { error: cleanupError } = await supabase.storage.from("pfe-reports").remove([path]);
+        if (cleanupError) {
+          console.error("[dashboard] failed to cleanup uploaded PDF after insert error", cleanupError);
+        }
+        throw docErr;
+      }
       createdDocumentId = doc.id;
 
       setProgress("Extracting text from PDF…");
-      const text = (
-        await withTimeout(extractPdfText(file), 60_000, "PDF text extraction timed out. Try a smaller or text-based PDF.")
-      ).slice(0, MAX_RAW_TEXT_CHARS);
+      const text = (await extractPdfText(file)).slice(0, MAX_RAW_TEXT_CHARS);
       if (text.length < 100) throw new Error("Could not extract enough text from this PDF.");
 
       setProgress("Analyzing with AI (metadata, summary, embeddings)…");
-      await withTimeout(
-        processFn({ data: { documentId: doc.id, rawText: text } }),
-        120_000,
-        "Report analysis timed out. Please try uploading it again.",
-      );
-      toast.success("Report analyzed");
+      const result = await processFn({ data: { documentId: doc.id, rawText: text } });
+      if (result.metadataNeedsReview) toast.info("Report indexed. Check the flagged metadata fields.");
+      else toast.success("Report analyzed");
     } catch (e: unknown) {
       if (createdDocumentId) {
         const { error: statusError } = await supabase
@@ -178,6 +205,7 @@ function Dashboard() {
       }
       toast.error(e instanceof Error ? e.message : "Upload failed");
     } finally {
+      uploadLockRef.current = false;
       setUploading(false);
       setProgress(null);
       load();
@@ -367,6 +395,29 @@ function Dashboard() {
                 </div>
                 {d.status === "ready" ? (
                   <>
+                    {d.metadata_review && (
+                      <div role="status" className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-800 dark:text-amber-200">
+                        <p className="font-medium">
+                          {d.metadata_review.source === "deterministic"
+                            ? "Model metadata failed validation; verbatim PDF values are shown where available."
+                            : d.metadata_review.source === "partial"
+                              ? "Some model fields failed validation; accepted AI values are kept and explicit PDF values fill missing fields."
+                            : d.metadata_review.source === "unavailable"
+                            ? "Metadata extraction failed; no substitute values were added."
+                            : d.metadata_review.source === "fallback"
+                              ? "This older report contains heuristic fallback values."
+                              : "Review these metadata fields:"}
+                        </p>
+                        <ul className="mt-1 list-inside list-disc space-y-0.5">
+                          {d.metadata_review.issues.map((issue) => <li key={issue}>{issue}</li>)}
+                        </ul>
+                      </div>
+                    )}
+                    {!d.metadata_review && d.error && (
+                      <p role="status" className="mt-2 text-xs text-amber-700 dark:text-amber-300">
+                        Metadata needs review. This older report does not have field-level review details.
+                      </p>
+                    )}
                     <p className="mt-3 line-clamp-3 text-sm text-muted-foreground">{d.summary}</p>
                     <div className="mt-3 flex flex-wrap gap-1.5">
                       {d.field && <Badge variant="secondary">{d.field}</Badge>}

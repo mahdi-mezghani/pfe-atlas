@@ -21,6 +21,7 @@ export const Route = createFileRoute("/__authenticated/ask")({
 type Turn = {
   q: string;
   a?: string;
+  model?: string;
   sources?: { n: number; title: string; documentId: string; excerpt: string; similarity: number }[];
   loading?: boolean;
 };
@@ -42,7 +43,7 @@ function AskPage() {
       if (!res || typeof res.answer !== "string") {
         throw new Error("The chatbot could not return an answer. Please try again.");
       }
-      setTurns((t) => t.map((x, i) => (i === idx ? { q, a: res.answer, sources: res.sources } : x)));
+      setTurns((t) => t.map((x, i) => (i === idx ? { q, a: res.answer, model: res.model ?? undefined, sources: res.sources } : x)));
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : "Failed");
       setTurns((t) => t.filter((_, i) => i !== idx));
@@ -70,6 +71,7 @@ function AskPage() {
               ) : (
                 <>
                   <p className="whitespace-pre-wrap leading-relaxed">{t.a}</p>
+                  {t.model && <p className="mt-3 text-xs text-muted-foreground">Answered by {t.model}</p>}
                   {t.sources && t.sources.length > 0 && (
                     <div className="mt-4 space-y-2 border-t border-border/50 pt-4">
                       <p className="text-xs uppercase tracking-widest text-muted-foreground">Sources</p>

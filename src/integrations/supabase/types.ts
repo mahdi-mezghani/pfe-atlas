@@ -56,8 +56,10 @@ export type Database = {
           difficulty: string | null
           error: string | null
           field: string | null
+          file_hash: string | null
           file_name: string
           id: string
+          metadata_review: Json | null
           raw_text: string | null
           status: string
           storage_path: string
@@ -73,8 +75,10 @@ export type Database = {
           difficulty?: string | null
           error?: string | null
           field?: string | null
+          file_hash?: string | null
           file_name: string
           id?: string
+          metadata_review?: Json | null
           raw_text?: string | null
           status?: string
           storage_path: string
@@ -90,8 +94,10 @@ export type Database = {
           difficulty?: string | null
           error?: string | null
           field?: string | null
+          file_hash?: string | null
           file_name?: string
           id?: string
+          metadata_review?: Json | null
           raw_text?: string | null
           status?: string
           storage_path?: string

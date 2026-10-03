@@ -1,4 +1,8 @@
-import { createStart, createMiddleware } from "@tanstack/react-start";
+import {
+  createCsrfMiddleware,
+  createMiddleware,
+  createStart,
+} from "@tanstack/react-start";
 import { getRequest } from "@tanstack/react-start/server";
 
 import { renderErrorPage } from "./lib/error-page";
@@ -8,7 +12,10 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
   try {
     return await next();
   } catch (error) {
-    if (getRequest()?.url && new URL(getRequest().url).pathname.startsWith("/_serverFn/")) {
+    if (
+      getRequest()?.url &&
+      new URL(getRequest().url).pathname.startsWith("/_serverFn/")
+    ) {
       throw error;
     }
     if (error != null && typeof error === "object" && "statusCode" in error) {
@@ -22,7 +29,11 @@ const errorMiddleware = createMiddleware().server(async ({ next }) => {
   }
 });
 
+const csrfMiddleware = createCsrfMiddleware({
+  filter: (ctx) => ctx.handlerType === "serverFn",
+});
+
 export const startInstance = createStart(() => ({
   functionMiddleware: [attachSupabaseAuth],
-  requestMiddleware: [errorMiddleware],
+  requestMiddleware: [csrfMiddleware, errorMiddleware],
 }));
