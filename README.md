@@ -27,7 +27,7 @@ The main objective was to create a full-stack application capable of:
 - Backend: Node.js server functions
 - Database: Supabase + PostgreSQL
 - Search: pgvector with halfvec embeddings
-- AI: Google Gemini API
+- AI: Google Gemini or an OpenAI-compatible API
 - PDF parsing: PDF.js
 - Styling: Tailwind CSS and custom UI components
 
@@ -35,22 +35,34 @@ The main objective was to create a full-stack application capable of:
 
 - User authentication and protected access
 - PDF upload and document management
-- Text extraction from PDF pages
-- Automated document chunking
-- Embedding generation for semantic search
-- Vector similarity search over document chunks
-- AI chat interface grounded in uploaded documents
+- PDF text extraction with PDF.js, followed by metadata and overview generation
+- Validation of AI-generated metadata against report text, with explicit PDF labels used to fill missing fields
+- Review notices when AI fields are rejected or a model is unavailable or rate-limited
+- Text chunking and embedding generation for semantic search
+- Vector similarity search across indexed report chunks
+- AI answers grounded in retrieved passages, with links back to the relevant reports
+- Duplicate-upload detection per user using a SHA-256 file hash
 - Document detail pages and dashboard overview
+
+## What Happens When a Report Is Uploaded
+
+1. The signed-in user's PDF is stored in Supabase Storage and its text is extracted in the browser with PDF.js.
+2. The extracted text is sent to an authenticated server function. The server checks document ownership before processing it.
+3. AI models propose report metadata and a short overview. Proposed values are validated against the report text; unsupported values are rejected. If AI metadata is incomplete or unavailable, deterministic extraction fills only fields found under explicit labels in the PDF, and the document is marked for review when appropriate.
+4. The report text is split into chunks, embedded, and indexed in PostgreSQL with pgvector. Processing is capped at 200 chunks per report.
+5. The library displays the analyzed report. Semantic search and question answering retrieve relevant chunks from indexed reports to ground their results.
+
+AI model and endpoint settings are configurable through server environment variables. Gemini is supported directly; other providers can be used through an OpenAI-compatible endpoint. Provider quotas and availability still apply. See [DEPLOYMENT.md](./DEPLOYMENT.md) for setup and environment configuration.
 
 ## Architecture
 
 The application follows a full-stack architecture:
 
 1. The frontend provides the user interface for uploading files and interacting with the chatbot.
-2. Server functions process documents, extract text, generate embeddings, and run retrieval.
+2. PDF.js extracts report text; authenticated server functions validate ownership, generate metadata, create embeddings, and run retrieval.
 3. Supabase stores metadata and document chunk data.
 4. pgvector enables similarity-based retrieval over embedded content.
-5. Gemini is used for both embedding generation and final response generation.
+5. A configured AI provider generates embeddings, metadata, summaries, and context-grounded answers.
 
 ## Key Challenges Solved
 
