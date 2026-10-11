@@ -24,6 +24,20 @@ SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 
 You may also need additional configuration depending on project use cases and deployment environment.
 
+### Optional local Ollama embeddings
+
+To keep Gemini for chat and summaries while generating embeddings locally with Ollama, install and run Ollama on the same machine as the app server, pull the embedding model, and add:
+
+```env
+AI_EMBEDDING_PROVIDER=ollama
+AI_OLLAMA_BASE_URL=http://localhost:11434
+AI_OLLAMA_EMBEDDING_MODEL=qwen3-embedding:latest
+AI_OLLAMA_KEEP_ALIVE=60s
+AI_OLLAMA_NUM_THREADS=4
+```
+
+Ollama keeps the model loaded for 60 seconds after its last embedding request, then unloads it. `AI_OLLAMA_KEEP_ALIVE` accepts an Ollama duration such as `30s` or `2m`. The default thread cap is four; lower `AI_OLLAMA_NUM_THREADS` to reduce CPU use further, or raise it if embedding speed is more important. The app requests 3,072 dimensions to match the current pgvector schema. Re-upload or reprocess every document after changing embedding models, and use the same configured model for document chunks and search queries. For a remote app server, `localhost` refers to that server, not your computer; configure a reachable Ollama URL and secure it appropriately.
+
 ## Installation
 
 ```bash

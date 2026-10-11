@@ -9,6 +9,11 @@
 //   AI_GEMINI_CHAT_MODEL   Gemini chat model override
 //   AI_GEMINI_EMBEDDING_MODEL Gemini embedding model override
 //   AI_GEMINI_USE_API_KEY   true to send Gemini key as `?key=...` instead of a bearer token
+//   AI_EMBEDDING_PROVIDER  optional independent embedding provider (e.g. ollama)
+//   AI_OLLAMA_BASE_URL     Ollama server URL for local embeddings
+//   AI_OLLAMA_EMBEDDING_MODEL Ollama embedding model override
+//   AI_OLLAMA_KEEP_ALIVE   time to keep the embedding model loaded after a request
+//   AI_OLLAMA_NUM_THREADS  maximum CPU threads used by the Ollama embedding model
 //   AI_METADATA_INITIAL_MODEL  lower-cost model for the first metadata pass
 //   AI_METADATA_RETRY_MODEL    stronger model for metadata correction
 const DEFAULT_OPENAI_BASE = "https://api.openai.com/v1";
@@ -87,6 +92,10 @@ function provider() {
   return normalizeProvider();
 }
 
+function embeddingProvider() {
+  return normalizeProvider(process.env.AI_EMBEDDING_PROVIDER || provider());
+}
+
 function base() {
   if (provider() === "gemini") {
     return process.env.AI_BASE_URL || "https://generativelanguage.googleapis.com";
@@ -155,10 +164,23 @@ function geminiChatModels(requestedModel?: string): string[] {
 }
 
 function embeddingModel() {
-  if (provider() === "gemini") {
+  if (embeddingProvider() === "ollama") {
+    return process.env.AI_OLLAMA_EMBEDDING_MODEL || "qwen3-embedding:latest";
+  }
+  if (embeddingProvider() === "gemini") {
     return process.env.AI_GEMINI_EMBEDDING_MODEL || "gemini-embedding-2";
   }
   return process.env.AI_EMBEDDING_MODEL || "google/gemini-embedding-2";
+}
+
+function ollamaNumThreads(): number {
+  const configuredThreads = process.env.AI_OLLAMA_NUM_THREADS;
+  if (configuredThreads === undefined || configuredThreads.trim() === "") return 4;
+  const numThreads = Number(configuredThreads);
+  if (!Number.isSafeInteger(numThreads) || numThreads < 1) {
+    throw new Error("AI_OLLAMA_NUM_THREADS must be a positive integer.");
+  }
+  return numThreads;
 }
 
 function headers(): Record<string, string> {
@@ -209,10 +231,16 @@ export function buildDeterministicGenerationConfig() {
   };
 }
 
-export function buildGeminiGenerationConfig(jsonMode = false) {
+export function buildGeminiGenerationConfig(jsonSchema?: unknown) {
   return {
     ...buildDeterministicGenerationConfig(),
-    ...(jsonMode ? { responseMimeType: "application/json" } : {}),
+    ...(jsonSchema === undefined
+      ? {}
+      : {
+          maxOutputTokens: 4096,
+          responseMimeType: "application/json",
+          responseSchema: jsonSchema,
+        }),
   };
 }
 
@@ -268,7 +296,20 @@ export async function embed(inputs: string[]): Promise<number[][]> {
   for (let i = 0; i < inputs.length; i += 100) {
     const batch = inputs.slice(i, i + 100);
     let res;
-    if (provider() === "gemini") {
+    if (embeddingProvider() === "ollama") {
+      const ollamaBase = (process.env.AI_OLLAMA_BASE_URL || "http://localhost:11434").replace(/\/+$/, "");
+      res = await fetch(`${ollamaBase}/api/embed`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: embeddingModel(),
+          input: batch,
+          dimensions: 3072,
+          keep_alive: process.env.AI_OLLAMA_KEEP_ALIVE || "60s",
+          options: { num_thread: ollamaNumThreads() },
+        }),
+      });
+    } else if (embeddingProvider() === "gemini") {
       const modelName = `models/${embeddingModel()}`;
       const body = {
         requests: batch.map((text) => ({
@@ -302,15 +343,24 @@ export async function embed(inputs: string[]): Promise<number[][]> {
       ? response.responses
       : [];
 
+    if (data.length !== batch.length) {
+      throw new Error(`Embedding response returned ${data.length} vectors for ${batch.length} inputs.`);
+    }
+
     for (const [index, item] of data.entries()) {
       const itemRecord = asRecord(item);
       const nestedEmbedding = asRecord(itemRecord?.embedding);
-      const embedding = itemRecord?.values ??
+      const embedding = Array.isArray(item)
+        ? item
+        : itemRecord?.values ??
         nestedEmbedding?.values ??
         itemRecord?.embedding ??
         itemRecord?.value;
       if (!embedding || !Array.isArray(embedding)) {
         throw new Error("Unexpected embedding response format.");
+      }
+      if (!embedding.every((value) => typeof value === "number" && Number.isFinite(value))) {
+        throw new Error("Embedding response contains non-numeric vector values.");
       }
       out[i + index] = embedding;
     }
@@ -332,7 +382,7 @@ type ChatOptions = {
 export async function chatWithModel(
   messages: ChatMessage[],
   opts: ChatOptions = {},
-): Promise<{ text: string; model: string }> {
+): Promise<{ text: string; model: string; finishReason?: string; outputTokens?: number }> {
   if (provider() === "gemini") {
     const systemMessages = messages.filter((message) => message.role === "system");
     const userAndAssistant = messages.filter((message) => message.role !== "system");
@@ -355,7 +405,14 @@ export async function chatWithModel(
           role: message.role === "assistant" ? "model" : message.role,
           parts: [{ text: message.content }],
         })),
-        generationConfig: buildGeminiGenerationConfig(Boolean(opts.json_schema)),
+        generationConfig: buildGeminiGenerationConfig(
+          opts.json_schema?.schema === undefined
+            ? undefined
+            : Object.fromEntries(
+                Object.entries(asRecord(opts.json_schema.schema) ?? {})
+                  .filter(([key]) => key !== "additionalProperties"),
+              ),
+        ),
       };
 
       if (systemMessages.length) {
@@ -407,7 +464,17 @@ export async function chatWithModel(
         (typeof candidateLegacyText === "string" ? candidateLegacyText : "") ||
         (typeof outputLegacyText === "string" ? outputLegacyText : "") ||
         (typeof response?.completion === "string" ? response.completion : "");
-      return { text: String(candidateText), model };
+      const finishReason = typeof candidate?.finishReason === "string" ? candidate.finishReason : undefined;
+      const usageMetadata = asRecord(response?.usageMetadata);
+      const outputTokens = typeof usageMetadata?.candidatesTokenCount === "number"
+        ? usageMetadata.candidatesTokenCount
+        : undefined;
+      return {
+        text: String(candidateText),
+        model,
+        ...(finishReason ? { finishReason } : {}),
+        ...(outputTokens === undefined ? {} : { outputTokens }),
+      };
     }
 
     throw new Error("No Gemini chat model was available.");
@@ -447,7 +514,17 @@ export async function chatWithModel(
   if (content !== undefined && typeof content !== "string") {
     throw new Error("Unexpected chat response format.");
   }
-  return { text: content ?? "", model };
+  const finishReason = typeof asRecord(choices[0])?.finish_reason === "string"
+    ? asRecord(choices[0])?.finish_reason as string
+    : undefined;
+  const usage = asRecord(response?.usage);
+  const outputTokens = typeof usage?.completion_tokens === "number" ? usage.completion_tokens : undefined;
+  return {
+    text: content ?? "",
+    model,
+    ...(finishReason ? { finishReason } : {}),
+    ...(outputTokens === undefined ? {} : { outputTokens }),
+  };
 }
 
 export async function chat(messages: ChatMessage[], opts: ChatOptions = {}): Promise<string> {
