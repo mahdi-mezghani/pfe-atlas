@@ -52,7 +52,7 @@ The main objective was to create a full-stack application capable of:
 4. The report text is split into chunks, embedded, and indexed in PostgreSQL with pgvector. Processing is capped at 200 chunks per report.
 5. The library displays the analyzed report. Semantic search and question answering retrieve relevant chunks from indexed reports to ground their results.
 
-AI model and endpoint settings are configurable through server environment variables. Gemini is supported directly; other providers can be used through an OpenAI-compatible endpoint. Ollama can optionally provide local embeddings independently of the chat provider. Provider quotas and availability still apply. See [DEPLOYMENT.md](./DEPLOYMENT.md) for setup and environment configuration.
+AI model and endpoint settings are configurable through server environment variables. Gemini is supported directly; other providers can be used through an OpenAI-compatible endpoint. Ollama can optionally provide local embeddings independently of the chat provider; its embedding model unloads after a configurable idle timeout, and CPU threads can be capped with `AI_OLLAMA_NUM_THREADS`. Provider quotas and availability still apply. See [DEPLOYMENT.md](./DEPLOYMENT.md) for setup and environment configuration.
 
 ## Architecture
 
