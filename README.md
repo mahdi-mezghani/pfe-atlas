@@ -1,6 +1,22 @@
-# PDF Document Analysis Chatbot
+# PFE Atlas
 
-Version 1.0
+[![CI](https://github.com/mahdi-mezghani/pfe-atlas/actions/workflows/ci.yml/badge.svg)](https://github.com/mahdi-mezghani/pfe-atlas/actions/workflows/ci.yml)
+
+AI-powered analysis and semantic search for final-year project (PFE) reports.
+
+## Screenshots
+
+![PFE Atlas report library](public/screenshots/library.png)
+
+## Getting Started
+
+1. Install Node.js 22 or newer and npm.
+2. Install dependencies with `npm ci`.
+3. Copy `.env.example` to `.env` and configure your Supabase project and AI provider. Never commit `.env` or put a Supabase service-role key in a `VITE_` variable.
+4. Apply the SQL migrations in `supabase/migrations` to your Supabase project.
+5. Start the local app with `npm run dev`.
+
+Run the checks locally with `npm run lint`, `npm test`, and `npm run build`.
 
 ## Internship Project Summary
 
@@ -43,6 +59,8 @@ The main objective was to create a full-stack application capable of:
 - AI answers grounded in retrieved passages, with links back to the relevant reports
 - Duplicate-upload detection per user using a SHA-256 file hash
 - Document detail pages and dashboard overview
+- Full extracted PDF text is not retained after processing; indexed chunks remain available for semantic retrieval
+- Per-user hourly limits on uploads, document processing, questions, and semantic searches
 
 ## What Happens When a Report Is Uploaded
 
@@ -100,3 +118,7 @@ This project helped strengthen understanding of:
 ---
 
 Prepared as part of an internship project.
+
+## License
+
+This project is licensed under the [MIT License](./LICENSE).
