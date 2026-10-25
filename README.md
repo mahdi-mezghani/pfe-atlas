@@ -8,6 +8,12 @@ AI-powered analysis and semantic search for final-year project (PFE) reports.
 
 ![PFE Atlas report library](public/screenshots/library.png)
 
+![PFE Atlas document detail page using a fictional sample report](public/screenshots/document-detail.png)
+
+## Demo
+
+No public live demo is currently deployed. A demo is available on request.
+
 ## Getting Started
 
 1. Install Node.js 22 or newer and npm.
@@ -20,11 +26,11 @@ Run the checks locally with `npm run lint`, `npm test`, and `npm run build`.
 
 ## Internship Project Summary
 
-This project was developed during an internship as an intelligent document analysis and question-answering system. The application allows users to upload PDF documents, extract their text content, prepare the information for semantic search, and ask questions in natural language. The system then retrieves the most relevant document segments and generates a context-aware answer using an AI model.
+PFE Atlas was developed during my internship at Digit Kakushin Soft in August 2026 and continued afterwards. It is an intelligent document analysis and question-answering system: users upload PDF documents, extract their text, prepare it for semantic search, and ask questions in natural language. The system retrieves relevant document segments and generates context-aware answers using an AI model.
 
 The goal of the project was to build a practical proof-of-concept for document intelligence, combining modern web development, database search, and AI-powered reasoning in a single workflow.
 
-Lovable was used only during the initial scaffolding and early UI prototyping phase to help accelerate the project’s launch. The final application was then developed and refined independently, with custom implementation across PDF processing, AI integration, semantic retrieval, database design, and runtime debugging. As a result, the project is fully independent from Lovable in its current form and does not rely on Lovable-specific code, tooling, or runtime configuration.
+Lovable was used during the initial scaffolding and early UI prototyping. Development began during the internship and continued afterwards, including custom implementation across PDF processing, AI integration, semantic retrieval, database design, and runtime debugging. The current application does not rely on Lovable-specific runtime configuration.
 
 ## Project Objective
 
