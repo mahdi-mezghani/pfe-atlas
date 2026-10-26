@@ -10,6 +10,7 @@ type MetadataReview = {
   source: "ai" | "unavailable" | "fallback" | "deterministic" | "partial";
   summary_source?: "ai" | "deterministic";
   issues: string[];
+  debug?: string[];
 };
 
 function isMetadataReview(value: unknown): value is MetadataReview {
@@ -18,7 +19,8 @@ function isMetadataReview(value: unknown): value is MetadataReview {
   return (review.source === "ai" || review.source === "unavailable" || review.source === "fallback" || review.source === "deterministic" || review.source === "partial") &&
     (review.summary_source === undefined || review.summary_source === "ai" || review.summary_source === "deterministic") &&
     Array.isArray(review.issues) &&
-    review.issues.every((issue) => typeof issue === "string");
+    review.issues.every((issue) => typeof issue === "string") &&
+    (review.debug === undefined || (Array.isArray(review.debug) && review.debug.every((entry) => typeof entry === "string")));
 }
 
 export const Route = createFileRoute("/__authenticated/document/$id")({
@@ -68,7 +70,7 @@ function DocPage() {
         </div>
       </header>
 
-      {doc.status === "ready" && metadataReview && (
+      {doc.status === "ready" && metadataReview && metadataReview.issues.length > 0 && (
         <aside role="status" className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200">
           <p className="font-medium">
             {metadataReview.source === "deterministic"
@@ -85,6 +87,14 @@ function DocPage() {
             {metadataReview.issues.map((issue) => <li key={issue}>{issue}</li>)}
           </ul>
         </aside>
+      )}
+      {doc.status === "ready" && metadataReview?.debug && metadataReview.debug.length > 0 && (
+        <details className="rounded-md border border-border/60 p-3 text-sm">
+          <summary className="cursor-pointer font-medium">Processing diagnostics</summary>
+          <ul className="mt-2 list-inside list-disc space-y-1 text-muted-foreground">
+            {metadataReview.debug.map((entry) => <li key={entry}>{entry}</li>)}
+          </ul>
+        </details>
       )}
       {doc.status === "ready" && doc.error && !metadataReview && (
         <p role="status" className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200">

@@ -90,6 +90,22 @@ test("metadata validation accepts only values supported by report text", () => {
     keywords: ["Data Engineering", "NLP"],
   });
 
+  test("explicit report keywords take precedence over model-generated keywords", () => {
+    const result = normalizeMetadata(testReport, {
+      title: "Conception d’une plateforme intelligente de traitement et d’analyse automatisée des rapports techniques",
+      authors: ["Mahdi Mezghani"],
+      supervisor: "Dr. Yassine Gharbi",
+      field: "Data Science",
+      difficulty: "Medium",
+      summary: "",
+      technologies: ["Python", "Pandas"],
+      keywords: ["unsupported model guess"],
+    }, ["Data Engineering", "NLP"]);
+
+    assert.deepEqual(result.keywords, ["Data Engineering", "NLP"]);
+    assert.ok(!result.reviewIssues.some((issue) => issue.startsWith("Keywords —")));
+  });
+
   assert.equal(result.title, "Conception d’une plateforme intelligente de traitement et d’analyse automatisée des rapports techniques");
   assert.deepEqual(result.authors, ["Mahdi Mezghani"]);
   assert.equal(result.supervisor, "Dr. Yassine Gharbi");

@@ -6,7 +6,7 @@ AI-powered analysis and semantic search for final-year project (PFE) reports.
 
 ## Screenshots
 
-![PFE Atlas report library](public/screenshots/library.png)
+![PFE Atlas report library with anonymized sample details on the second card](public/screenshots/library.png)
 
 ![PFE Atlas document detail page using a fictional sample report](public/screenshots/document-detail.png)
 

@@ -38,6 +38,12 @@ AI_OLLAMA_NUM_THREADS=4
 
 Ollama keeps the model loaded for 60 seconds after its last embedding request, then unloads it. `AI_OLLAMA_KEEP_ALIVE` accepts an Ollama duration such as `30s` or `2m`. The default thread cap is four; lower `AI_OLLAMA_NUM_THREADS` to reduce CPU use further, or raise it if embedding speed is more important. The app requests 3,072 dimensions to match the current pgvector schema. Re-upload or reprocess every document after changing embedding models, and use the same configured model for document chunks and search queries. For a remote app server, `localhost` refers to that server, not your computer; configure a reachable Ollama URL and secure it appropriately.
 
+### Document privacy and request limits
+
+Apply all SQL migrations in `supabase/migrations` before deploying. Extracted full-document text is processed in memory and is not retained in the documents table; the migration removes any previously stored `raw_text` values and column. The original PDF and indexed chunks remain stored because they are needed for document viewing and search.
+
+Authenticated users are limited per hour to 10 PDF uploads, 10 document records, 5 document-processing requests, 30 report questions, and 60 semantic searches. The upload and document-record limits are also enforced in Supabase Storage and the database, not only in the browser. Rate-limit records are maintained by the database.
+
 ## Installation
 
 ```bash

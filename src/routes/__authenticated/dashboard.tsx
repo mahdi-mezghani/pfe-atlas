@@ -38,6 +38,7 @@ type Doc = {
     source: "ai" | "unavailable" | "fallback" | "deterministic" | "partial";
     summary_source?: "ai" | "deterministic";
     issues: string[];
+    debug?: string[];
   } | null;
   created_at: string;
   updated_at: string;
@@ -158,7 +159,12 @@ function Dashboard() {
       const { error: upErr } = await supabase.storage
         .from("pfe-reports")
         .upload(path, file, { contentType: "application/pdf", upsert: false });
-      if (upErr) throw upErr;
+      if (upErr) {
+        if (/row-level security policy/i.test(upErr.message)) {
+          throw new Error("Upload limit reached. Please wait before uploading more reports.");
+        }
+        throw upErr;
+      }
 
       const { data: doc, error: docErr } = await supabase
         .from("documents")
@@ -175,6 +181,9 @@ function Dashboard() {
         const { error: cleanupError } = await supabase.storage.from("pfe-reports").remove([path]);
         if (cleanupError) {
           console.error("[dashboard] failed to cleanup uploaded PDF after insert error", cleanupError);
+        }
+        if (docErr.message.includes("RATE_LIMIT_DOCUMENT_CREATE")) {
+          throw new Error("Document creation limit reached. Please wait before uploading more reports.");
         }
         throw docErr;
       }
@@ -395,7 +404,7 @@ function Dashboard() {
                 </div>
                 {d.status === "ready" ? (
                   <>
-                    {d.metadata_review && (
+                    {d.metadata_review && d.metadata_review.issues.length > 0 && (
                       <div role="status" className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-800 dark:text-amber-200">
                         <p className="font-medium">
                           {d.metadata_review.source === "deterministic"

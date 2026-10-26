@@ -60,7 +60,6 @@ export type Database = {
           file_name: string
           id: string
           metadata_review: Json | null
-          raw_text: string | null
           status: string
           storage_path: string
           summary: string | null
@@ -79,7 +78,6 @@ export type Database = {
           file_name: string
           id?: string
           metadata_review?: Json | null
-          raw_text?: string | null
           status?: string
           storage_path: string
           summary?: string | null
@@ -98,7 +96,6 @@ export type Database = {
           file_name?: string
           id?: string
           metadata_review?: Json | null
-          raw_text?: string | null
           status?: string
           storage_path?: string
           summary?: string | null
@@ -179,6 +176,12 @@ export type Database = {
           id: string
           similarity: number
         }[]
+      }
+      consume_user_rate_limit: {
+        Args: {
+          p_action: string
+        }
+        Returns: boolean
       }
     }
     Enums: {

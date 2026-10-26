@@ -292,6 +292,7 @@ function titleMatchesCover(candidate: string, rawText: string): boolean {
 export function normalizeMetadata(
   rawText: string,
   candidate: Partial<Record<string, unknown>> | null | undefined,
+  explicitKeywords: string[] = [],
 ): NormalizedMetadata {
   const reviewIssues: string[] = [];
   const normalizedReport = rawText.normalize("NFKD").replace(/\p{M}/gu, "").toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ");
@@ -319,7 +320,9 @@ export function normalizeMetadata(
   const summaryIsValid = isLikelySummary(candidateSummary);
   const candidateAuthors = parseStringList(candidate?.authors, "Authors");
   const candidateTechnologies = parseStringList(candidate?.technologies, "Technologies");
-  const candidateKeywords = parseStringList(candidate?.keywords, "Keywords");
+  const candidateKeywords = explicitKeywords.length > 0
+    ? explicitKeywords
+    : parseStringList(candidate?.keywords, "Keywords");
   const authors = normalizeList(candidateAuthors.filter(hasEvidence));
   const technologies = normalizeList(candidateTechnologies.filter(hasEvidence));
   const keywords = filterTechnologyKeywords(normalizeList(candidateKeywords.filter(hasEvidence)), technologies);
